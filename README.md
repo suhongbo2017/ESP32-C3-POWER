@@ -1,60 +1,99 @@
 # ESP32-C3 PC Power Controller
 
-第一阶段固件：
+用 ESP32-C3 SuperMini 短按机箱电源键的控制器：网页/按钮触发一次约 300ms 的脉冲，
+带 OTA、Wi-Fi 失败自动开热点、以及可选的 PWR-LED / 温湿度 / MQTT / Ping 集成。
 
-- `GPIO1` 控制开关机光耦模块，默认保持 `LOW`
-- 串口和 Web 都可以触发一次约 `300ms` 的短脉冲
-- 内置 Web Server，提供状态页和手动 `PULSE` 控制
-- 内置浏览器 OTA 上传固件
-- Wi-Fi 连接失败时启动配置 AP，便于首次测试
-- 暂不包含 MQTT、Ping、PWR-LED 和温湿度传感器功能
+## 固件选型
 
-## 硬件安全
+主固件为 **ESPHome**（`pc-power-c3.yaml`），理由是第二阶段规划的功能
+（MQTT、Ping、PWR-LED、温湿度）ESPHome 全部原生支持，且 OTA 带安全模式与回滚。
 
-当前不要把 `GPIO1` 直接接到光耦模块 `IN+`。模块板上的 `30R0` 为 `30.0 ohm`，需要外接约 `330 ohm` 串联电阻后再测试：
+`src/` 下的 PlatformIO + Arduino 实现是**第一阶段的回退版本**（仅脉冲 + 网页 + OTA + AP），
+保留用于救援和对比，不再是主线。两者引脚与硬件接线完全一致，可互相 OTA 覆盖。
+
+## 硬件安全（务必先读）
+
+光耦模块板载的 `30R0` 只有 30Ω，**不足以保护 GPIO**：
+3.3V 直连时 LED 电流约 70mA，超出 ESP32-C3 单脚推荐 20mA 和 PC817 的 50mA 上限。
+
+正确接线：
 
 ```text
-GPIO1 --- 330 ohm --- IN+
-GND ----------------- IN-
+GPIO1 --[220~330Ω]-- 光耦 IN+
+GPIO1 --[10kΩ]------ GND            <- 必须：防止上电/复位期间悬空误触发
+GND   --------------- 光耦 IN-
+光耦 S1/S2 ---------- 主板 PWR_SW 两针
 ```
 
-光耦输出端 `S1/S2` 在固件和限流测试通过后，再接主板 `PWR_SW` 两针。
+阻值计算：`R_总 = (3.3V - Vf) / I_LED`，Vf≈1.2V。
 
-## 编译与烧录
+| 情形 | 外部电阻 | 实际 LED 电流 |
+|---|---|---|
+| 板上 30Ω 在输入回路（先用万用表确认） | 220Ω | ≈7.4mA |
+| 板上 30Ω 在输入回路，偏保守 | 330Ω | ≈6.4mA |
+| 板上 30Ω 不在输入回路 | 220Ω | ≈8mA |
+
+用万用表确认拓扑：
+
+1. 二极管档，红笔 `IN+`、黑笔 `IN-` → 应显示约 1.0~1.2V（LED 压降）。
+2. 电阻档量 `IN+ ↔ IN-` → 若某方向约 30~40Ω，则 30Ω 在输入回路；若两方向都开路，则不在。
+
+上机顺序：先不接主板，触发一次脉冲，串表测 GPIO1 回路电流（<10mA）与高电平电压（>3.0V），
+合格后再把 `S1/S2` 接到 `PWR_SW`。
+
+> 更保险的做法：GPIO1 → 1kΩ → S8050 基极，光耦 LED 串在集电极回路由 3.3V 供电，
+> GPIO 只出约 1mA，彻底不依赖 GPIO 的驱动能力。
+
+## 烧录（ESPHome，推荐）
+
+```bash
+pip install esphome                  # 或使用 Home Assistant 的 ESPHome 插件
+cp secrets.yaml.example secrets.yaml # 填入 Wi-Fi / 密码 / api_key
+esphome config pc-power-c3.yaml      # 语法与密码引用检查
+esphome run pc-power-c3.yaml         # 首次 USB 烧录；之后同一命令走 OTA
+esphome logs pc-power-c3.yaml
+```
+
+首次 USB 烧录会编译并自动下载。之后设备出现在网络上，用 `esphome run` 或
+ESPHome Dashboard 即可 OTA，无需手动上传 `.bin`。
+
+端口与地址：
+
+- 接入家庭 Wi-Fi 后：`http://pc-power-c3.local/`（mDNS），登录用户名 `admin`
+- Wi-Fi 连不上时：设备自动开热点 `PC-Power-C3-Fallback`，地址 `http://192.168.4.1/`
+
+## 回退到 Arduino 固件（救援用）
 
 ```bash
 pio run
-pio run -t upload
+pio run -t upload                    # 需要 USB 连接
 pio device monitor -b 115200
 ```
 
-上电后串口会打印设备 IP。浏览器访问：
+旧固件行为：GPIO1 默认 `LOW`，串口命令 `PULSE` / `STATUS` / `HELP`，
+网页 `http://<IP>/`，OTA 页面 `http://<IP>/ota`（Basic Auth，用户名 `admin`，
+密码见 `src/config.h` 的 `OTA_PASSWORD` —— **该密码已在公开仓库中，请先修改**）。
 
-```text
-http://<设备IP>/
-```
+> 建议在切到 ESPHome 之前先备份整片 flash，以便随时恢复：
+> `esphome` 无法直接读取备份，用 esptool：
+> `esptool.py --chip esp32c3 read_flash 0 0x400000 backup-full.bin`
 
-若 Wi-Fi 连接失败，连接 AP：
+## 与旧固件的功能对照
 
-```text
-PC-Power-C3-XXXX
-```
+| 功能 | 旧固件 (Arduino) | ESPHome |
+|---|---|---|
+| GPIO1 300ms 脉冲 | ✅ 非阻塞状态机 | ✅ `switch: gpio` + `delay` |
+| 独立网页 | ✅ 自绘暗色 UI | ✅ `web_server`（v3 起有新 UI） |
+| OTA | ⚠️ 无回滚/安全模式 | ✅ `ota` + `safe_mode` |
+| Wi-Fi 失败开 AP | ✅ 15s 阻塞超时 | ✅ `wifi.ap` + `captive_portal` |
+| 串口交互命令 | ✅ PULSE/STATUS/HELP | ❌ 仅日志（无 REPL） |
+| MQTT / Ping / PWR-LED / 温湿度 | ❌ 未实现 | ✅ 配置文件末尾已备好，取消注释即可 |
 
-密码：
+## 参考：规划功能（第二阶段）
 
-```text
-pcpower123
-```
+- **PWR-LED**：`binary_sensor: gpio` + `filters: delayed_off` 去抖
+- **Ping**：新版 ESPHome 的 `ping` 二进制传感器；老版本用 HA 的 Ping 集成
+- **温湿度**：I2C 走 GPIO4(SDA)/GPIO5(SCL)，避开 GPIO8（板载 LED）和 GPIO9（BOOT/strapping）
+- **MQTT**：`mqtt:` 组件
 
-AP 模式地址固定为 `192.168.4.1`。
-
-## OTA
-
-访问 `/ota`，输入 HTTP Basic Auth：
-
-```text
-用户名：admin
-密码：修改 src/config.h 中的 OTA_PASSWORD
-```
-
-上传由 PlatformIO 编译生成的 `.pio/build/esp32-c3-pc-power/firmware.bin`。
+以上均已写在 `pc-power-c3.yaml` 末尾（注释状态）。

@@ -3,3 +3,7 @@
 *.pyc
 __pycache__/
 .DS_Store
+
+# ESPHome
+.esphome/
+secrets.yaml
