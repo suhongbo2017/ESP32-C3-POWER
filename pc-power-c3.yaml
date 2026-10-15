@@ -63,6 +63,57 @@ web_server:
 
 safe_mode:                 # 固件刷坏时自动进安全模式，可再次 OTA 救援
 
+# ---------------------------------------------------------------------------
+# 云端 MQTT 控制通道
+# 设备只向公网 MQTT/TLS 发起出站连接；手机端不会接触这些凭据。
+# ---------------------------------------------------------------------------
+globals:
+  - id: last_command_id
+    type: std::string
+    restore_value: no
+    initial_value: '""'
+
+mqtt:
+  broker: !secret mqtt_host
+  port: 8883
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+  client_id: pc-power-c3-001
+  topic_prefix: pc-power-c3-001
+  discovery: false
+  certificate_authority: !include mqtt-isrgrootx1.pem
+  birth_message:
+    topic: pc-power-c3-001/status/online
+    payload: '{"online":true}'
+    qos: 1
+    retain: true
+  will_message:
+    topic: pc-power-c3-001/status/offline
+    payload: '{"online":false}'
+    qos: 1
+    retain: true
+  shutdown_message:
+    topic: pc-power-c3-001/status/offline
+    payload: '{"online":false}'
+    qos: 1
+    retain: true
+  on_json_message:
+    - topic: pc-power-c3-001/commands/power-press
+      qos: 1
+      then:
+        - if:
+            condition:
+              lambda: 'return !id(pwr_sw).state && root["kind"] == "power_press" && root["commandId"].is<const char*>();'
+            then:
+              - lambda: 'id(last_command_id) = root["commandId"].as<std::string>();'
+              - mqtt.publish_json:
+                  topic: pc-power-c3-001/events/command-ack
+                  qos: 1
+                  payload: |-
+                    root["commandId"] = id(last_command_id);
+                    root["status"] = "accepted";
+              - switch.turn_on: pwr_sw
+
 # ===========================================================================
 # 核心：电源键 300ms 短按脉冲
 # ===========================================================================
@@ -77,6 +128,17 @@ switch:
     on_turn_on:
       - delay: ${pulse_ms}     # ESPHome 的 delay 是非阻塞的(set_timeout)
       - switch.turn_off: pwr_sw
+      - if:
+          condition:
+            lambda: 'return !id(last_command_id).empty();'
+          then:
+            - mqtt.publish_json:
+                topic: pc-power-c3-001/events/command-ack
+                qos: 1
+                payload: |-
+                  root["commandId"] = id(last_command_id);
+                  root["status"] = "executed";
+            - lambda: 'id(last_command_id).clear();'
     # 重复触发保护: GPIO switch 已 ON 时再次 turn_on 会被忽略，
     # 因此连点不会叠加出长按，行为与旧固件的 "pulse_rejected_busy" 等价。
 
