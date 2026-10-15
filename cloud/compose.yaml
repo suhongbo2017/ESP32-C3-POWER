@@ -8,7 +8,7 @@ services:
     environment:
       PORT: 8310
       DATABASE_URL: postgresql://${POSTGRES_USER:-pcpower}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-pcpower}
-      MQTT_URL: mqtts://mosquitto:8883
+      MQTT_URL: mqtts://mqtt.19831018.xyz:8883
       MQTT_USERNAME: ${MQTT_APP_USERNAME:-cloudapp}
       MQTT_PASSWORD: ${MQTT_APP_PASSWORD:?Set MQTT_APP_PASSWORD in cloud/.env}
       MQTT_TLS_SERVERNAME: mqtt.19831018.xyz
