@@ -7,3 +7,13 @@ __pycache__/
 # ESPHome
 .esphome/
 secrets.yaml
+
+# Cloud deployment secrets and runtime data
+cloud/.env
+cloud/mosquitto/passwords
+cloud/mosquitto/data/
+cloud/mosquitto/log/
+cloud/.deploy.env
+cloud/mosquitto/certs/
+cloud/mosquitto/acl.generated
+cloud/mosquitto/passwords.generated

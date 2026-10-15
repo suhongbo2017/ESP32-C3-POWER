@@ -1,0 +1,9 @@
+{
+  "name": "pc-power-cloud-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PC Power cloud control service",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

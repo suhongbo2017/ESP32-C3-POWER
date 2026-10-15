@@ -1,0 +1,3 @@
+# Replace this placeholder before starting Mosquitto.
+# The production ACL must grant the cloud app full access to the broker and
+# each device access only to its own commands/status/event topics.

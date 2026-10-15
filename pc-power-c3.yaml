@@ -46,19 +46,17 @@ ota:
   - platform: esphome
     password: !secret ota_password
 
+# 连接家庭 2.4GHz Wi-Fi；主网络不可用时启动备用 AP。
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-  # 连不上家里的 Wi-Fi 时自动开热点，替代原来手写的 AP 回落逻辑
   ap:
-    ssid: "PC-Power-C3-Fallback"
+    ssid: "PC-Power-C3"
     password: !secret ap_password
-
-captive_portal:            # AP 模式下自动弹出配置页
 
 web_server:
   port: 80
-  # version: 3            # 2025.7+ 才有新的 Web UI；老版本删掉此行(默认 v2)
+  version: 2             # 使用内置资源，独立 AP 模式下无需外网
   auth:
     username: admin
     password: !secret web_password

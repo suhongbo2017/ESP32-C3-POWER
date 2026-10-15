@@ -1,7 +1,7 @@
 # ESP32-C3 PC Power Controller
 
 用 ESP32-C3 SuperMini 短按机箱电源键的控制器：网页/按钮触发一次约 300ms 的脉冲，
-带 OTA、Wi-Fi 失败自动开热点、以及可选的 PWR-LED / 温湿度 / MQTT / Ping 集成。
+带 OTA、家庭 Wi-Fi / Home Assistant 接入、Wi-Fi 故障备用 AP，以及可选的 PWR-LED / 温湿度 / MQTT / Ping 集成。
 
 ## 固件选型
 
@@ -48,19 +48,23 @@ GND   --------------- 光耦 IN-
 
 ```bash
 pip install esphome                  # 或使用 Home Assistant 的 ESPHome 插件
-cp secrets.yaml.example secrets.yaml # 填入 Wi-Fi / 密码 / api_key
+cp secrets.yaml.example secrets.yaml # 填入密码 / api_key 等密钥
 esphome config pc-power-c3.yaml      # 语法与密码引用检查
-esphome run pc-power-c3.yaml         # 首次 USB 烧录；之后同一命令走 OTA
+esphome run pc-power-c3.yaml         # 首次 USB 烧录；之后可走 OTA
 esphome logs pc-power-c3.yaml
 ```
 
-首次 USB 烧录会编译并自动下载。之后设备出现在网络上，用 `esphome run` 或
-ESPHome Dashboard 即可 OTA，无需手动上传 `.bin`。
+首次 USB 烧录会编译并自动下载。设备连入家庭 Wi-Fi 后，可通过 ESPHome OTA 更新，
+或继续使用 USB 端口烧录。`secrets.yaml` 中必须填写 2.4GHz Wi-Fi 凭据、备用 AP 密码、
+Web 登录密码和 API 加密密钥。
 
-端口与地址：
+Home Assistant 使用说明：
 
-- 接入家庭 Wi-Fi 后：`http://pc-power-c3.local/`（mDNS），登录用户名 `admin`
-- Wi-Fi 连不上时：设备自动开热点 `PC-Power-C3-Fallback`，地址 `http://192.168.4.1/`
+1. 确认 ESP32-C3 与 Home Assistant 在可互相访问的局域网中。
+2. 固件成功连接 Wi-Fi 后，在 Home Assistant 中添加 ESPHome 设备 `pc-power-c3`。
+3. 按提示输入 `secrets.yaml` 中 `api_key` 对应的 API 加密密钥。
+4. 添加后使用实体“PC Power C3 电源键短按”触发约 300ms 的 GPIO1 脉冲。
+5. 若家庭 Wi-Fi 不可用，设备启动带密码的备用热点 `PC-Power-C3`，可连接后访问 `http://192.168.4.1/`；网页用户名为 `admin`，密码为 `web_password`。
 
 ## 回退到 Arduino 固件（救援用）
 
@@ -83,15 +87,15 @@ pio device monitor -b 115200
 | 功能 | 旧固件 (Arduino) | ESPHome |
 |---|---|---|
 | GPIO1 300ms 脉冲 | ✅ 非阻塞状态机 | ✅ `switch: gpio` + `delay` |
-| 独立网页 | ✅ 自绘暗色 UI | ✅ `web_server`（v3 起有新 UI） |
+| 独立网页 | ✅ 自绘暗色 UI | ✅ `web_server` v2（页面资源内置） |
 | OTA | ⚠️ 无回滚/安全模式 | ✅ `ota` + `safe_mode` |
-| Wi-Fi 失败开 AP | ✅ 15s 阻塞超时 | ✅ `wifi.ap` + `captive_portal` |
+| 家庭 Wi-Fi / 备用 AP | ✅ AP 模式 | ✅ `wifi` 接入家庭网络，失败时启动 `wifi.ap` |
 | 串口交互命令 | ✅ PULSE/STATUS/HELP | ❌ 仅日志（无 REPL） |
 | MQTT / Ping / PWR-LED / 温湿度 | ❌ 未实现 | ✅ 配置文件末尾已备好，取消注释即可 |
 
 ## 参考：规划功能（第二阶段）
 
-- **PWR-LED**：`binary_sensor: gpio` + `filters: delayed_off` 去抖
+- **开机状态检测（PWR-LED）**：`binary_sensor: gpio` + `filters: delayed_off` 去抖
 - **Ping**：新版 ESPHome 的 `ping` 二进制传感器；老版本用 HA 的 Ping 集成
 - **温湿度**：I2C 走 GPIO4(SDA)/GPIO5(SCL)，避开 GPIO8（板载 LED）和 GPIO9（BOOT/strapping）
 - **MQTT**：`mqtt:` 组件
