@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101417">
+  <title>PC Power Control</title>
+  <style>
+    :root { color-scheme: dark; --bg:#101417; --panel:#171d21; --line:#2b363c; --text:#edf2f1; --muted:#8e9b9d; --accent:#e8b45e; --good:#6fca96; --bad:#e47d72; }
+    * { box-sizing:border-box; } body { margin:0; min-height:100vh; background:radial-gradient(circle at 80% 0%,#27333a 0,#101417 42%); color:var(--text); font:16px/1.5 Georgia,"Times New Roman",serif; }
+    .shell { width:min(760px,100%); margin:0 auto; padding:28px 20px 48px; } header { display:flex; justify-content:space-between; align-items:start; border-bottom:1px solid var(--line); padding-bottom:22px; margin-bottom:28px; }
+    .eyebrow { color:var(--accent); font:12px/1.2 ui-monospace,SFMono-Regular,monospace; letter-spacing:2px; text-transform:uppercase; } h1 { font-size:clamp(32px,8vw,58px); line-height:.95; font-weight:400; margin:10px 0 0; letter-spacing:0; } h2 { font-size:22px; font-weight:400; margin:0; } p { margin:0; }
+    .status { color:var(--muted); font:12px ui-monospace,SFMono-Regular,monospace; text-align:right; } .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--muted); margin-right:6px; } .dot.good { background:var(--good); }
+    .panel { background:rgba(23,29,33,.88); border:1px solid var(--line); padding:24px; margin-bottom:16px; box-shadow:0 18px 50px rgba(0,0,0,.18); } label { display:block; color:var(--muted); font:12px ui-monospace,SFMono-Regular,monospace; margin:14px 0 6px; } input { width:100%; background:#0e1214; border:1px solid var(--line); color:var(--text); padding:13px 12px; font:16px ui-monospace,SFMono-Regular,monospace; border-radius:2px; } button { border:0; border-radius:2px; cursor:pointer; font:14px ui-monospace,SFMono-Regular,monospace; } .primary { width:100%; margin-top:18px; padding:14px; background:var(--accent); color:#17120a; } button:disabled { opacity:.45; cursor:not-allowed; }
+    .device-head { display:flex; justify-content:space-between; gap:16px; align-items:center; } .device-meta { color:var(--muted); font:13px ui-monospace,SFMono-Regular,monospace; margin-top:8px; } .online { color:var(--good); } .offline { color:var(--bad); }
+    .power { width:100%; min-height:92px; margin-top:26px; background:transparent; border:1px solid var(--accent); color:var(--accent); font-size:18px; transition:background .2s, color .2s; } .power:hover:not(:disabled) { background:var(--accent); color:#17120a; } .power:active:not(:disabled) { transform:translateY(1px); }
+    .message { min-height:24px; color:var(--muted); margin-top:16px; font:13px ui-monospace,SFMono-Regular,monospace; } .message.error { color:var(--bad); } .message.good { color:var(--good); } .hidden { display:none; } .footer { color:var(--muted); font:11px ui-monospace,SFMono-Regular,monospace; margin-top:28px; }
+    @media (max-width:480px) { .shell { padding:20px 14px 36px; } .panel { padding:18px; } header { margin-bottom:20px; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header><div><div class="eyebrow">Remote hardware control</div><h1>PC Power</h1></div><div class="status"><span class="dot" id="apiDot"></span><span id="apiState">未连接</span></div></header>
+    <section class="panel" id="loginPanel"><h2>登录控制台</h2><form id="loginForm"><label for="email">邮箱</label><input id="email" type="email" autocomplete="username" required><label for="password">密码</label><input id="password" type="password" autocomplete="current-password" required><button class="primary" type="submit">登录</button></form><div class="message" id="loginMessage"></div></section>
+    <section class="panel hidden" id="controlPanel"><div class="device-head"><div><h2 id="deviceName">设备</h2><div class="device-meta" id="deviceUid"></div></div><div id="deviceStatus"></div></div><button class="power" id="powerButton" disabled>发送电源键脉冲</button><div class="message" id="commandMessage"></div><div class="footer">设备确认只代表命令已执行，不代表 PC 当前电源状态。</div></section>
+  </main>
+<script>
+const $ = (id) => document.getElementById(id); let accessToken = sessionStorage.getItem('pcPowerToken'); let device = null; let pollTimer;
+function message(id, text, type='') { const el=$(id); el.textContent=text; el.className='message '+type; }
+async function api(path, options={}) { const headers={...(options.body?{'content-type':'application/json'}:{}), ...(accessToken?{authorization:`Bearer ${accessToken}`}:{})}; const r=await fetch(path,{...options,headers}); const data=await r.json().catch(()=>({})); if(!r.ok) throw new Error(data.error||`HTTP ${r.status}`); return data; }
+function showLoggedOut() { $('loginPanel').classList.remove('hidden'); $('controlPanel').classList.add('hidden'); $('apiState').textContent='未连接'; $('apiDot').className='dot'; }
+function showDevice(d) { device=d; $('deviceName').textContent=d.name; $('deviceUid').textContent=d.device_uid; $('deviceStatus').textContent=d.status==='online'?'在线':'离线'; $('deviceStatus').className=d.status==='online'?'online':'offline'; $('powerButton').disabled=d.status!=='online'; }
+async function refresh() { try { const data=await api('/api/devices'); if(!data.devices.length) throw new Error('暂无授权设备'); showDevice(data.devices[0]); $('loginPanel').classList.add('hidden'); $('controlPanel').classList.remove('hidden'); $('apiState').textContent='服务正常'; $('apiDot').className='dot good'; } catch(e) { if(e.message==='authentication_required') { accessToken=null; sessionStorage.removeItem('pcPowerToken'); showLoggedOut(); } else message('commandMessage',e.message,'error'); } }
+$('loginForm').addEventListener('submit',async(e)=>{e.preventDefault(); message('loginMessage','正在登录…'); try { const data=await api('/api/auth/login',{method:'POST',body:JSON.stringify({email:$('email').value,password:$('password').value})}); accessToken=data.accessToken; sessionStorage.setItem('pcPowerToken',accessToken); message('loginMessage',''); await refresh(); } catch(e) { message('loginMessage','登录失败，请检查账号和密码。','error'); } });
+$('powerButton').addEventListener('click',async()=>{ if(!device)return; $('powerButton').disabled=true; message('commandMessage','正在发送命令…'); try { const data=await api(`/api/devices/${device.id}/commands/power-press`,{method:'POST',headers:{'idempotency-key':crypto.randomUUID()},body:'{}'}); message('commandMessage','命令已发送，等待设备确认…'); const started=Date.now(); const check=async()=>{ const result=await api(`/api/commands/${data.commandId}`); const state=result.command.status; if(state==='acknowledged'){message('commandMessage','设备已确认执行。','good');$('powerButton').disabled=false;return;} if(['failed','rejected','timed_out'].includes(state)){message('commandMessage',`命令状态：${state}`,'error');$('powerButton').disabled=false;return;} if(Date.now()-started<20000)setTimeout(check,800);else {message('commandMessage','等待确认超时。','error');$('powerButton').disabled=false;} }; setTimeout(check,500); } catch(e) { message('commandMessage',e.message==='device_offline'?'设备当前离线，无法发送。':'发送失败。','error');$('powerButton').disabled=false; } });
+if(accessToken){refresh(); pollTimer=setInterval(refresh,5000);} else showLoggedOut();
+</script>
+</body>
+</html>

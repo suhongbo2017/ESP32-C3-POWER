@@ -46,7 +46,10 @@ async function consumeMqttMessage(topic, payload) {
   const device = await pool.query("SELECT id FROM devices WHERE device_uid = $1", [deviceUid]);
   if (!device.rowCount) return;
   const data = parseJson(payload) || { value: payload.toString() };
-  await pool.query("UPDATE devices SET status = 'online', last_seen_at = now() WHERE id = $1", [device.rows[0].id]);
+  const isOffline = family === "status" && name === "offline";
+  await pool.query(isOffline
+    ? "UPDATE devices SET status = 'offline' WHERE id = $1"
+    : "UPDATE devices SET status = 'online', last_seen_at = now() WHERE id = $1", [device.rows[0].id]);
   await pool.query("INSERT INTO device_events (device_id, event_type, payload) VALUES ($1, $2, $3)", [device.rows[0].id, `${family}.${name}`, data]);
   if (family === "events" && name === "command-ack" && data.commandId && ["accepted", "executed", "rejected"].includes(data.status)) {
     await markCommand(data.commandId, data.status === "rejected" ? "rejected" : "acknowledged");
@@ -90,6 +93,10 @@ async function authenticate(req) {
 
 async function handle(req, res) {
   if (req.method === "GET" && req.url === "/health") return json(res, 200, { ok: true, service: "pc-power-cloud", status: "ready" });
+  if (req.method === "GET" && (req.url === "/" || req.url === "/index.html")) {
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+    return res.end(fs.readFileSync("/app/public/index.html"));
+  }
   if (req.method === "POST" && req.url === "/api/auth/login") {
     const body = await readBody(req);
     const result = await pool.query("SELECT id, password_hash FROM users WHERE email = $1", [body.email]);

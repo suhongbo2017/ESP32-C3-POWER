@@ -6,6 +6,7 @@ RUN npm install --omit=dev
 COPY app/server.js ./server.js
 COPY app/schema.sql ./schema.sql
 COPY app/seed.js ./seed.js
+COPY app/public ./public
 
 ENV NODE_ENV=production
 EXPOSE 8310
