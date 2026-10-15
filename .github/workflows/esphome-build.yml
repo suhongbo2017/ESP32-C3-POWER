@@ -1,0 +1,62 @@
+name: ESPHome firmware build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "pc-power-c3.yaml"
+      - "mqtt-isrgrootx1.pem"
+      - ".github/workflows/esphome-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install ESPHome
+        run: python -m pip install "esphome==2026.6.5"
+
+      - name: Create CI-only secrets
+        shell: bash
+        run: |
+          cat > secrets.yaml <<'EOF'
+          wifi_ssid: "CI_BUILD_WIFI"
+          wifi_password: "CI_BUILD_WIFI_PASSWORD"
+          ap_password: "CI_BUILD_AP_PASSWORD"
+          ota_password: "CI_BUILD_OTA_PASSWORD"
+          web_password: "CI_BUILD_WEB_PASSWORD"
+          api_key: "Huep2tMxTk23QJzpbORpFKPFtfVwG+SWSGFQshlEdYA="
+          mqtt_host: "mqtt.19831018.xyz"
+          mqtt_username: "ci-build-device"
+          mqtt_password: "CI_BUILD_MQTT_PASSWORD"
+          EOF
+
+      - name: Validate configuration
+        run: esphome config pc-power-c3.yaml
+
+      - name: Compile firmware
+        run: esphome compile pc-power-c3.yaml
+
+      - name: Upload firmware artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pc-power-c3-firmware-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            .esphome/build/pc-power-c3/.pioenvs/pc-power-c3/firmware.bin
+            .esphome/build/pc-power-c3/.pioenvs/pc-power-c3/firmware.elf
+            .esphome/build/pc-power-c3/.pioenvs/pc-power-c3/firmware.map

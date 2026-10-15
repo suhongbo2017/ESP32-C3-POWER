@@ -6,6 +6,7 @@ __pycache__/
 
 # ESPHome
 .esphome/
+build-native.cmd
 secrets.yaml
 
 # Cloud deployment secrets and runtime data
