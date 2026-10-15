@@ -13,8 +13,9 @@ The files are a deployment skeleton. Do not expose or start Mosquitto publicly u
 - the cloud application is added to the Compose project;
 - the server firewall and Nginx route are reviewed.
 
-The current broker listener is intentionally only exposed inside the Docker network.
-It is not published on the Ubuntu host.
+The production broker listener is TLS-only on host port `8883`. The certificate
+must be issued for `mqtt.19831018.xyz`; do not use the Nginx default certificate.
+The broker must not expose plain MQTT `1883`.
 
 ## Local validation
 

@@ -36,10 +36,11 @@ services:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ./mosquitto/passwords:/mosquitto/config/passwords:ro
       - ./mosquitto/acl:/mosquitto/config/acl:ro
+      - ./mosquitto/certs:/mosquitto/config/certs:ro
       - ./mosquitto/data:/mosquitto/data
       - ./mosquitto/log:/mosquitto/log
-    expose:
-      - "1883"
+    ports:
+      - "8883:8883"
     networks:
       - backend
 
