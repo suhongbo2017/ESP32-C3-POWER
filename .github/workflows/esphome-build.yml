@@ -66,6 +66,26 @@ jobs:
             grep -RniE "error:|fatal error:|undefined reference|FAILED:|warning:" .esphome/build/pc-power-c3 2>/dev/null | head -300 || true
           } > build-diagnostics.txt
 
+      - name: Publish compiler diagnostics
+        if: always()
+        shell: bash
+        run: |
+          echo "## ESPHome compiler diagnostics" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f esphome-compile.log ]; then
+            echo '```text' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 160 esphome-compile.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            grep -E "error:|fatal error:|undefined reference|FAILED:" esphome-compile.log | tail -n 80 | while IFS= read -r line; do
+              echo "::error::$line"
+            done || true
+          fi
+          if [ -f build-diagnostics.txt ]; then
+            echo '### Build diagnostics' >> "$GITHUB_STEP_SUMMARY"
+            echo '```text' >> "$GITHUB_STEP_SUMMARY"
+            cat build-diagnostics.txt >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload build diagnostics
         if: always()
         uses: actions/upload-artifact@v4
