@@ -47,7 +47,40 @@ jobs:
         run: esphome config pc-power-c3.yaml
 
       - name: Compile firmware
-        run: esphome compile pc-power-c3.yaml
+        id: compile
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          esphome compile pc-power-c3.yaml 2>&1 | tee esphome-compile.log
+
+      - name: Collect build diagnostics
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "=== ESPHome version ==="
+            esphome version
+            echo "=== Build files ==="
+            find .esphome/build/pc-power-c3 -maxdepth 5 -type f 2>/dev/null | sort | head -300
+            echo "=== Compiler errors and warnings ==="
+            grep -RniE "error:|fatal error:|undefined reference|FAILED:|warning:" .esphome/build/pc-power-c3 2>/dev/null | head -300 || true
+          } > build-diagnostics.txt
+
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pc-power-c3-build-diagnostics-${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            esphome-compile.log
+            build-diagnostics.txt
+            .esphome/build/pc-power-c3/.pioenvs/pc-power-c3/CMakeFiles/CMakeError.log
+            .esphome/build/pc-power-c3/.pioenvs/pc-power-c3/CMakeFiles/CMakeOutput.log
+
+      - name: Fail if compilation failed
+        if: steps.compile.outcome != 'success'
+        run: exit 1
 
       - name: Upload firmware artifacts
         if: success()
