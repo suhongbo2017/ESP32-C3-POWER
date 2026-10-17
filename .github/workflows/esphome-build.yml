@@ -32,8 +32,7 @@ jobs:
         shell: bash
         run: |
           cat > secrets.yaml <<'EOF'
-          wifi_ssid: ""
-          wifi_password: ""
+          # AP-only firmware: pc-power-c3.yaml intentionally omits station Wi-Fi.
           ap_password: "CI_BUILD_AP_PASSWORD"
           ota_password: "CI_BUILD_OTA_PASSWORD"
           web_password: "CI_BUILD_WEB_PASSWORD"

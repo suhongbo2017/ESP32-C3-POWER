@@ -48,8 +48,7 @@ ota:
 
 # 首次上电只启动备用 AP；通过 captive portal/Web Server 配置家庭 2.4GHz Wi-Fi。
 wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
+  networks: []
   ap:
     ssid: "PC-Power-C3"
     password: !secret ap_password
