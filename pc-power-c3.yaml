@@ -103,9 +103,9 @@ mqtt:
       then:
         - if:
             condition:
-              lambda: 'return !id(pwr_sw).state && root["kind"] == "power_press" && root["commandId"].is<const char*>();'
+              lambda: 'return !id(pwr_sw).state && x["kind"] == "power_press" && x["commandId"].is<const char*>();'
             then:
-              - lambda: 'id(last_command_id) = root["commandId"].as<std::string>();'
+              - lambda: 'id(last_command_id) = x["commandId"].as<std::string>();'
               - mqtt.publish_json:
                   topic: pc-power-c3-001/events/command-ack
                   qos: 1
