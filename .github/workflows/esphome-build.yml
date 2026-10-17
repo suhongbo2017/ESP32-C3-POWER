@@ -102,6 +102,27 @@ jobs:
         if: steps.compile.outcome != 'success'
         run: exit 1
 
+      - name: Prepare complete flash image
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          build_dir=.esphome/build/pc-power-c3/.pioenvs/pc-power-c3
+          bootloader=$(find "$build_dir" -type f -name bootloader.bin -print -quit)
+          partitions=$(find "$build_dir" -type f -name partitions.bin -print -quit)
+          firmware="$build_dir/firmware.bin"
+          test -n "$bootloader"
+          test -n "$partitions"
+          test -f "$firmware"
+          cp "$bootloader" "$build_dir/bootloader.bin"
+          cp "$partitions" "$build_dir/partitions.bin"
+          python -m esptool --chip esp32c3 merge-bin \
+            -o "$build_dir/firmware-full.bin" \
+            --flash-mode dio --flash-size 4MB \
+            0x0 "$build_dir/bootloader.bin" \
+            0x8000 "$build_dir/partitions.bin" \
+            0x10000 "$firmware"
+
       - name: Upload firmware artifacts
         if: success()
         uses: actions/upload-artifact@v4
@@ -109,6 +130,9 @@ jobs:
           name: pc-power-c3-firmware-${{ github.sha }}
           if-no-files-found: error
           path: |
+            .esphome/build/pc-power-c3/.pioenvs/pc-power-c3/firmware-full.bin
+            .esphome/build/pc-power-c3/.pioenvs/pc-power-c3/bootloader/bootloader.bin
+            .esphome/build/pc-power-c3/.pioenvs/pc-power-c3/partitions.bin
             .esphome/build/pc-power-c3/.pioenvs/pc-power-c3/firmware.bin
             .esphome/build/pc-power-c3/.pioenvs/pc-power-c3/firmware.elf
             .esphome/build/pc-power-c3/.pioenvs/pc-power-c3/firmware.map
