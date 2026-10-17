@@ -46,13 +46,16 @@ ota:
   - platform: esphome
     password: !secret ota_password
 
-# 连接家庭 2.4GHz Wi-Fi；主网络不可用时启动备用 AP。
+# 首次上电只启动备用 AP；通过 captive portal/Web Server 配置家庭 2.4GHz Wi-Fi。
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   ap:
     ssid: "PC-Power-C3"
     password: !secret ap_password
+    ap_timeout: 0s
+
+captive_portal:
 
 web_server:
   port: 80

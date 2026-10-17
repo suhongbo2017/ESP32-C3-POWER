@@ -32,8 +32,8 @@ jobs:
         shell: bash
         run: |
           cat > secrets.yaml <<'EOF'
-          wifi_ssid: "CI_BUILD_WIFI"
-          wifi_password: "CI_BUILD_WIFI_PASSWORD"
+          wifi_ssid: ""
+          wifi_password: ""
           ap_password: "CI_BUILD_AP_PASSWORD"
           ota_password: "CI_BUILD_OTA_PASSWORD"
           web_password: "CI_BUILD_WEB_PASSWORD"
